@@ -36,15 +36,18 @@ for file in glob(FILES):
     print("Right eye aspect ratio:", face.eye_aspect_ratio(right=True))
     print("Mouth aspect ratio:", face.mouth_aspect_ratio())
 
-    for feature in face.features:
-        p = feature.points
-        for i, point in enumerate(p[:-1]):
-            cv2.line(copy_cv, tuple(np.round(point).astype(np.int)), tuple(np.round(p[i + 1]).astype(np.int)), (255, 0, 0), 1)
+    f = lambda p: (p.x, p.y)
+    for component in FACE_DISPLAY:
+        for i, p in enumerate(component[:-1]):
+            cv2.line(copy_cv, f(landmarks.part(p)), f(landmarks.part(component[i + 1])), (255, 0, 0), 1)
 
-    cv2.rectangle(copy_cv, *face.right_eye.bounding_box(), (0, 255, 0))    
-    cv2.rectangle(copy_cv, *face.left_eye.bounding_box(), (0, 255, 0))
+    left_pupil = face.left_eye.find_pupil()
+    if left_pupil is not None:
+        cv2.circle(copy_cv, tuple(np.add(left_pupil, face.left_eye.bounding_box()[0])), 2, (0, 255, 0))
 
-    print(face.right_eye.find_pupil())
+    right_pupil = face.right_eye.find_pupil()
+    if right_pupil is not None:
+        cv2.circle(copy_cv, tuple(np.add(right_pupil, face.right_eye.bounding_box()[0])), 2, (0, 255, 0))
 
     for point in face.pnp_points:
         cv2.circle(copy_cv, (int(point[0]), int(point[1])), 2, (0, 0, 255))

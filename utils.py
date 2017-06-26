@@ -1,5 +1,7 @@
 import cv2
 import numpy as np
+from math import pi
+from matplotlib.path import Path
 from scipy.spatial.distance import euclidean as distance
 
 MODEL_COORDS = np.array((
@@ -11,6 +13,16 @@ MODEL_COORDS = np.array((
     (150, -150, -125)       # Mouth, right corner
 ), dtype=np.double)
 PNP_METHOD = cv2.SOLVEPNP_ITERATIVE
+FACE_DISPLAY = [
+    list(range(17)),
+    list(range(17, 22)),
+    list(range(22, 27)),
+    list(range(27, 36)) + [30],
+    list(range(36, 42)) + [36],
+    list(range(42, 48)) + [42],
+    list(range(48, 60)) + [48],
+    list(range(60, 68)) + [60]
+]
 
 def camera_internals(image):
     size = image.shape
@@ -24,28 +36,44 @@ def camera_internals(image):
     dist_coeffs = np.zeros((4, 1))
     return camera_matrix, dist_coeffs
 
+def polygon_area(x, y):
+    return 0.5 * np.abs(np.dot(x, np.roll(y, 1)) - np.dot(y, np.roll(x, 1)))
+
 class Feature:
-    def __init__(self, image, points):
+    def __init__(self, image, points, expand=0):
         self.points = points
-        bbox = list(zip(*self.bounding_box()))
+        bbox = list(zip(*self.bounding_box(expand)))
         self.image = image[slice(*bbox[1]), slice(*bbox[0])]
 
-    def bounding_box(self):
-        return (tuple(np.round(self.points.min(axis=0)).astype(np.int)),
-                tuple(np.round(self.points.max(axis=0)).astype(np.int)))
+    def bounding_box(self, expand=0):
+        bmin = self.points.min(axis=0)
+        bmax = self.points.max(axis=0)
+        diff = bmax - bmin
+        return (tuple(np.round(bmin - diff * expand).astype(np.int)), tuple(np.round(bmax + diff * expand).astype(np.int)))
 
 class Eyebrow(Feature):
     pass
 
 class Eye(Feature):
     def __init__(self, image, points):
-        super().__init__(image, points)
+        super().__init__(image, points, expand=0.5)
         self.left_corner = points[0]
         self.right_corner = points[3]
     
     def aspect_ratio(self):
         p1, p2, p3, p4, p5, p6 = self.points
         return (distance(p2, p6) + distance(p3, p5)) / (2 * distance(p1, p4))
+
+    def find_pupil(self):
+        grayscale = cv2.equalizeHist(cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY))
+        ret, threshold = cv2.threshold(grayscale, 128, 255, cv2.THRESH_BINARY_INV)
+        ret, contours, hierarchy = cv2.findContours(threshold, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+        largest = max(contours, key=cv2.contourArea)
+        area = cv2.contourArea(largest)
+        circularity = 4 * pi * area / cv2.arcLength(largest, True) ** 2
+        if circularity > 0.25 and area < polygon_area(*zip(*self.points)):
+            M = cv2.moments(largest)
+            return (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
 
 class Nose(Feature):
     def __init__(self, image, points):
