@@ -31,23 +31,30 @@ for file in glob(FILES):
     
     landmarks = predictor(image, detection)
     face = Face(img_cv, detection, landmarks)
+
+    lmin, lmax = np.array(face.left_eye.bounding_box(expand=EYE_EXPAND))
+    rmin, rmax = np.array(face.right_eye.bounding_box(expand=EYE_EXPAND))
+    cv2.circle(copy_cv, tuple(face.left_eye.find_pupil() + lmin.astype(np.int32)), 2, (0, 255, 0))
+    cv2.circle(copy_cv, tuple(face.right_eye.find_pupil() + rmin.astype(np.int32)), 2, (0, 255, 0))
     
     print("Left eye aspect ratio:", face.eye_aspect_ratio(left=True))
     print("Right eye aspect ratio:", face.eye_aspect_ratio(right=True))
     print("Mouth aspect ratio:", face.mouth_aspect_ratio())
+    print("Left eyebrow distance:", face.eyebrow_distance(left=True))
+    print("Right eyebrow distance:", face.eyebrow_distance(right=True))
 
+    left_center = face.left_eyebrow.center
+    left_top = face.left_eye.top
+    cv2.line(copy_cv, (int(left_center[0]), int(left_center[1])), (int(left_top[0]), int(left_top[1])), (0, 255, 0), 1)
+
+    right_center = face.right_eyebrow.center
+    right_top = face.right_eye.top
+    cv2.line(copy_cv, (int(right_center[0]), int(right_center[1])), (int(right_top[0]), int(right_top[1])), (0, 255, 0), 1)
+    
     f = lambda p: (p.x, p.y)
     for component in FACE_DISPLAY:
         for i, p in enumerate(component[:-1]):
             cv2.line(copy_cv, f(landmarks.part(p)), f(landmarks.part(component[i + 1])), (255, 0, 0), 1)
-
-    left_pupil = face.left_eye.find_pupil()
-    if left_pupil is not None:
-        cv2.circle(copy_cv, tuple(np.add(left_pupil, face.left_eye.bounding_box()[0])), 2, (0, 255, 0))
-
-    right_pupil = face.right_eye.find_pupil()
-    if right_pupil is not None:
-        cv2.circle(copy_cv, tuple(np.add(right_pupil, face.right_eye.bounding_box()[0])), 2, (0, 255, 0))
 
     for point in face.pnp_points:
         cv2.circle(copy_cv, (int(point[0]), int(point[1])), 2, (0, 0, 255))
